@@ -17,28 +17,28 @@ Setup an EKS cluster, and demonstrate access to S3 using IRSA as well as mount s
 
 ## Steps:
 1. Prereqs:
-  1. Configure AWS credentials (e.g., ~/.aws/credentials) for AWS user with sufficient privileges (e.g., admin)
-  1. Install aws (CLI)
-  1. Install eksctl
-  1. Install Helm
-  1. Set up some environment variables:
-    ```bash
-    SECRETNAME=mysecret
-    CLUSTERNAME=my-cluster
-    SERVICEACCTNAME=my-service-account
-    POLICYNAME=my-policy-name
-    REGION=us-east-1
-    S3BUCKETNAME="my-bucket-$(jot -r 1 10000000 99999999)"
+    1. Configure AWS credentials (e.g., ~/.aws/credentials) for AWS user with sufficient privileges (e.g., admin)
+    1. Install aws (CLI)
+    1. Install eksctl
+    1. Install Helm
+    1. Set up some environment variables:
+        ```bash
+        SECRETNAME=mysecret
+        CLUSTERNAME=my-cluster
+        SERVICEACCTNAME=my-service-account
+        POLICYNAME=my-policy-name
+        REGION=us-east-1
+        S3BUCKETNAME="my-bucket-$(jot -r 1 10000000 99999999)"
 
-    echo "$S3BUCKETNAME" # copy this, you'll need it later
-    ```
+        echo "$S3BUCKETNAME" # copy this, you'll need it later
+        ```
 
 1. Create secrets in Secret Manager
-  ```
-  aws secretsmanager create-secret --name "$SECRETNAME" \
-  --secret-string '{"username":"gerald.piggy", "password":"banana"}' \
-  --region "$REGION"
-  ```
+    ```
+    aws secretsmanager create-secret --name "$SECRETNAME" \
+    --secret-string '{"username":"gerald.piggy", "password":"banana"}' \
+    --region "$REGION"
+    ```
 
 1. Create an S3 bucket:
   ```
