@@ -41,95 +41,123 @@ Setup an EKS cluster, and demonstrate access to S3 using IRSA as well as mount s
     ```
 
 1. Create an S3 bucket:
-  ```
-  aws s3 mb s3://"$S3BUCKETNAME" --region "$REGION"
-  ```
+    ```
+    aws s3 mb s3://"$S3BUCKETNAME" --region "$REGION"
+    ```
 
 1. Create an EKS cluster
-  1. Create cluster (can take 15-20 min):
-time eksctl create cluster -f k8s/my-cluster.yaml
+    1. Create cluster (can take 15-20 min):
+        ```
+        time eksctl create cluster -f k8s/my-cluster.yaml
+        ```
+    1. Validate cluster exists with 3 nodes: 
+        ```
+        kubectl get nodes
+        ```
+    1. Create an IAM OIDC Provider for the cluster:
+        ```
+        eksctl utils associate-iam-oidc-provider \
+        --cluster "$CLUSTERNAME" \
+        --region "$REGION" \
+        --approve
+        ```
 
- Validate cluster exists with 3 nodes: 
-kubectl get nodes
+1. Install Secrets Store CSI Driver on EKS cluster:
+    1. Install Secret Store CSI Driver
+        ```
+        helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+        helm install -n kube-system csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver
+        ```
+    1. Wait for the Secrets Store CSI Driver to finish deploying:
+        ```
+        kubectl --namespace=kube-system get pods -l "app=secrets-store-csi-driver" --watch
+        ```
+    1. Install the AWS Provider for Secret Store CSI Driver
+        ```
+        helm repo add aws-secrets-manager https://aws.github.io/secrets-store-csi-driver-provider-aws
+        helm install -n kube-system secrets-provider-aws aws-secrets-manager/secrets-store-csi-driver-provider-aws
+        ```
 
-Create an IAM OIDC Provider for the cluster:
-eksctl utils associate-iam-oidc-provider \
-  --cluster "$CLUSTERNAME" \
-  --region "$REGION" \
-  --approve
+1. Create a policy that has access to S3 and Secrets Manager
+    ```
+    POLICY_ARN=$(aws --region "$REGION" --query Policy.Arn --output text iam create-policy --policy-name "$POLICYNAME" --policy-document file://./aws/policy.json)
+    ```
 
-Install Secrets Store CSI Driver on EKS cluster:
-Install Secret Store CSI Driver
-helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
-helm install -n kube-system csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver
+    Confirm the policy was created:
+    ```
+    aws iam list-policies --scope Local
+    ```
 
-Wait for the Secrets Store CSI Driver to finish deploying:
-kubectl --namespace=kube-system get pods -l "app=secrets-store-csi-driver" --watch
+1. Create a Kubernetes service account 
+    ```
+    eksctl create iamserviceaccount --name "$SERVICEACCTNAME" \
+    --region="$REGION" \
+    --cluster "$CLUSTERNAME" \
+    --attach-policy-arn "$POLICY_ARN" \
+    --approve --override-existing-serviceaccounts 
+    ```
 
-Install the AWS Provider for Secret Store CSI Driver
-helm repo add aws-secrets-manager https://aws.github.io/secrets-store-csi-driver-provider-aws
-helm install -n kube-system secrets-provider-aws aws-secrets-manager/secrets-store-csi-driver-provider-aws
+1. Create a secrets provider class:
+    ```
+    kubectl apply -f ./k8s/my-secret-provider-class.yaml
+    ```
 
-Create a policy that has access to S3 and Secrets Manager
-POLICY_ARN=$(aws --region "$REGION" --query Policy.Arn --output text iam create-policy --policy-name "$POLICYNAME" --policy-document file://./aws/policy.json)
+1. Create a pod
+    ```
+    kubectl apply -f ./k8s/my-deployment.yaml
+    ```
 
-Confirm the policy was created:
-aws iam list-policies --scope Local
+1. Validate Secrets Manager and S3 access from the pod:
+    1. Exec into the pod
+        ```
+        kubectl exec -it $(kubectl get pods | awk '/my-deployment/{print $1}' | head -1) -- /bin/bash
+        ```
 
-Create a Kubernetes service account 
-eksctl create iamserviceaccount --name "$SERVICEACCTNAME" \
---region="$REGION" \
---cluster "$CLUSTERNAME" \
---attach-policy-arn "$POLICY_ARN" \
---approve --override-existing-serviceaccounts
+    1. Validate the secrets file:
+        ```
+        cat /mnt/secrets-store/mysecret
+        ```
 
-Create a secrets provider class:
-kubectl apply -f ./k8s/my-secret-provider-class.yaml
+    1. Install AWS CLI:
+        ```
+        /usr/bin/apt-get update && /usr/bin/apt-get install -y awscli
+        ```
 
-Create a pod
-kubectl apply -f ./k8s/my-deployment.yaml
+    1. Put a file in S3, and verify it exists:
+        ```
+        S3BUCKETNAME=<your bucket name>
+        echo foo > foo.txt
+        aws s3 cp foo.txt "s3://${S3BUCKETNAME}/"
+        aws s3 cp "s3://${S3BUCKETNAME}/foo.txt" foo2.txt
+        ls
+        cat foo.txt
+        exit
+        ```
 
-Validate Secrets Manager and S3 access from the pod:
-Exec into the pod, and confirm you have s3 access
-kubectl exec -it $(kubectl get pods | awk '/my-deployment/{print $1}' | head -1) -- /bin/bash
+1. Clean up
+    1. Clean up IAM role and policy generated for IRSA:
+        ```
+        eksctl delete iamserviceaccount --name "$SERVICEACCTNAME" \
+        --region="$REGION" \
+        --cluster "$CLUSTERNAME"
+        ```
 
-Validate the secrets file:
-```
-cat /mnt/secrets-store/mysecret
-```
+    1. Delete secrets from Secrets Manager
+        ```
+        aws secretsmanager secret-id mysecret
+        ```
 
-Install AWS CLI:
-```
-/usr/bin/apt-get update && /usr/bin/apt-get install -y awscli
-```
+    1. Delete S3 bucket:
+        ```
+        aws s3 rb s3://"$S3BUCKETNAME" --region "$REGION"
+        ```
 
-Put a file in S3, and verify it exists:
-```
-S3BUCKETNAME=<your bucket name>
-echo foo > foo.txt
-aws s3 cp foo.txt "s3://${S3BUCKETNAME}/"
-aws s3 cp "s3://${S3BUCKETNAME}/foo.txt" foo2.txt
-ls
-cat foo.txt
-exit
-```
+    1. Delete EKS cluster
+        ```
+        time eksctl delete cluster -f k8s/my-cluster.yaml --disable-nodegroup-eviction --wait
+        ```
 
-Clean up
-Clean up IAM role and policy generated for IRSA:
-eksctl delete iamserviceaccount --name "$SERVICEACCTNAME" \
---region="$REGION" \
---cluster "$CLUSTERNAME"
-
-Delete secrets from Secrets Manager
-aws secretsmanager secret-id mysecret
-
-Delete S3 bucket:
-aws s3 rb s3://"$S3BUCKETNAME" --region "$REGION"
-
-Delete EKS cluster
-time eksctl delete cluster -f k8s/my-cluster.yaml --disable-nodegroup-eviction --wait
-
-Delete IAM policy
-aws iam delete-policy "$POLICY_ARN"
-
-
+    1. Delete IAM policy 
+        ```
+        aws iam delete-policy "$POLICY_ARN"
+        ```
