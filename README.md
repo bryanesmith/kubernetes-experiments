@@ -159,5 +159,5 @@ Setup an EKS cluster, and demonstrate access to S3 using IRSA as well as mount s
 
     1. Delete IAM policy 
         ```
-        aws iam delete-policy "$POLICY_ARN"
+        aws iam delete-policy --policy-arn "$POLICY_ARN"
         ```
