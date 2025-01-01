@@ -17,11 +17,11 @@ Setup an EKS cluster, and demonstrate access to S3 using IRSA as well as mount s
 
 ## Steps:
 1. Prereqs:
-    a. Configure AWS credentials (e.g., ~/.aws/credentials) for AWS user with sufficient privileges (e.g., admin)
-    b. Install aws (CLI)
-    c. Install eksctl
-    d. Install Helm
-    e. Set up some environment variables:
+    1. Configure AWS credentials (e.g., ~/.aws/credentials) for AWS user with sufficient privileges (e.g., admin)
+    1. Install aws (CLI)
+    1. Install eksctl
+    1. Install Helm
+    1. Set up some environment variables:
        ```bash
        SECRETNAME=mysecret
        CLUSTERNAME=my-cluster
