@@ -145,7 +145,7 @@
 
     1. Delete secrets from Secrets Manager
         ```
-        aws secretsmanager secret-id mysecret
+        aws secretsmanager delete-secret --secret-id "$SECRETNAME"
         ```
 
     1. Delete S3 bucket:
