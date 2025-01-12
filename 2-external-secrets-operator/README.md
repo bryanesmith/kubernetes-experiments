@@ -56,11 +56,13 @@
     # create policy
     POLICY_ARN=$(aws --region "$REGION" --query Policy.Arn --output text iam create-policy --policy-name "$POLICYNAME" --policy-document file://./aws/policy.json)
 
+    echo $POLICY_ARN
+
     # create user
     aws iam create-user --user-name "$USERNAME"
 
     # attach policy to user
-    aws iam attach-user-policy --user-name "$USERNAME" --policy-arn arn:aws:iam::aws:policy/"$POLICYNAME"
+    aws iam attach-user-policy --user-name "$USERNAME" --policy-arn "$POLICY_ARN"
     ```
 
 1. Fetch access key for IAM user:
@@ -71,7 +73,7 @@
 1. Create Kubernetes secret containing IAM user access key:
     ```bash
     # use values from previous step
-    kubectl create secret generic eso-demo-secret-store-access-key --from-literal=access-key=<access-key> --from-literal=secret-access-key=<secret-access-key>
+    kubectl create secret generic eso-demo-secret-store-access-key --from-literal=access-key=<access-key> --from-literal=secret-access-key=secret-access-key=<secret-access-key>
 
     kubectl get secret # validate eso-demo-secret-store-access-key exists
     ```
@@ -99,7 +101,7 @@
 1. Let's validate ESO will resync changed passwords:
     ```bash
     # modify secret in AWS Secrets Manager
-    aws secretsmanager create-secret --name "$SECRETNAME" \
+    aws secretsmanager update-secret --secret-id "$SECRETNAME" \
     --secret-string '{"username":"jayden", "password":"daniels5"}' \
     --region "$REGION"
 
@@ -115,7 +117,7 @@
 
     1. Delete secrets from Secrets Manager
         ```bash
-        aws secretsmanager secret-id "$SECRETNAME"
+        aws --region "$REGION" secretsmanager delete-secret --secret-id "$SECRETNAME"
         ```
 
     1. Delete EKS cluster
@@ -126,7 +128,11 @@
     1. Delete IAM user and policy
         ```bash
         # detach policy from user
-        aws iam detach-user-policy --user-name "$USERNAME" --policy-arn arn:aws:iam::aws:policy/"$POLICYNAME"
+        aws iam detach-user-policy --user-name "$USERNAME" --policy-arn "$POLICY_ARN"
+
+        # delete access key
+        aws iam list-access-keys --user-name "$USERNAME"
+        aws iam delete-access-key --user-name "$USERNAME" --access-key-id "<access-key-id>"
 
         # delete user
         aws iam delete-user --user-name "$USERNAME"
