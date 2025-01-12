@@ -1,0 +1,1 @@
+# EKS, Secrets Manager, and External Secrets Operator
