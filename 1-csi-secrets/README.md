@@ -1,8 +1,9 @@
-# Access AWS S3 and Secrets Manager from EKS using IRSA and CSI Driver
+# Access AWS S3 and Secrets Manager from EKS using IRSA and Secrets Store CSI Driver
 
 ## Goal
 
-Setup an EKS cluster, and demonstrate access to S3 using IRSA as well as mount secrets from Secrets Manager using CSI Driver
+1. Demonstrate access to S3 using IRSA from EKS 
+2. Mount secrets from Secrets Manager in an EKS pod using [AWS Secrets Manager Secret Store CSI Driver](https://github.com/aws/secrets-store-csi-driver-provider-aws)
 
 ## Technology
 * aws (CLI)
